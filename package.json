@@ -6,10 +6,12 @@
   "packageManager": "pnpm@11.5.0",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit && vite build",
     "preview": "vite preview"
   },
   "devDependencies": {
+    "typescript": "^6.0.3",
     "vite": "^8.1.0"
   },
   "dependencies": {

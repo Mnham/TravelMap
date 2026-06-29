@@ -1,13 +1,24 @@
-import { getCountryKey, normalizeName } from './countryIndex.js'
+import { getCountryKey, normalizeName } from './countryIndex'
+import type { CountrySearchEntry } from './countryTypes'
 
-export function extractCountryNames(text, searchEntries) {
+interface NormalizedRange {
+  index: number
+  endIndex: number
+}
+
+interface CountryMatch {
+  index: number
+  name: string
+}
+
+export function extractCountryNames(text: string, searchEntries: CountrySearchEntry[]): string[] {
   const normalizedValue = normalizeName(text)
   if (!normalizedValue) {
     return []
   }
 
-  const matchesByCountry = new Map()
-  const occupiedRanges = []
+  const matchesByCountry = new Map<string, CountryMatch>()
+  const occupiedRanges: NormalizedRange[] = []
 
   for (const entry of searchEntries) {
     const countryKey = getCountryKey(entry.feature)
@@ -36,10 +47,13 @@ export function extractCountryNames(text, searchEntries) {
     .map((match) => match.name)
 }
 
-function findNormalizedCountryNameOccurrences(value, countryName) {
+function findNormalizedCountryNameOccurrences(
+  value: string,
+  countryName: string,
+): NormalizedRange[] {
   const escapedName = countryName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const regex = new RegExp(`(?:^|\\s)${escapedName}(?=\\s|$)`, 'g')
-  const matches = []
+  const matches: NormalizedRange[] = []
   let match = regex.exec(value)
 
   while (match) {
@@ -54,7 +68,7 @@ function findNormalizedCountryNameOccurrences(value, countryName) {
   return matches
 }
 
-function isRangeOccupied(range, occupiedRanges) {
+function isRangeOccupied(range: NormalizedRange, occupiedRanges: NormalizedRange[]): boolean {
   return occupiedRanges.some((occupiedRange) => (
     range.index < occupiedRange.endIndex && range.endIndex > occupiedRange.index
   ))

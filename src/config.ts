@@ -1,3 +1,6 @@
+import type { CountryFeatureCollection, CountryOverride } from './countries/countryTypes'
+import type { StyleSpecification } from 'maplibre-gl'
+
 export const COUNTRIES_URL = 'https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson'
 export const COUNTRY_NAMES_URL = 'https://cdn.jsdelivr.net/npm/world-countries@latest/countries.json'
 
@@ -13,9 +16,9 @@ export const MAP_STYLE = {
       },
     },
   ],
-}
+} satisfies StyleSpecification
 
-export const COUNTRY_NAME_OVERRIDES = {
+export const COUNTRY_NAME_OVERRIDES: Record<string, CountryOverride> = {
   багамы: 'BHS',
   'др конго': 'COD',
   конго: 'COG',
@@ -45,7 +48,7 @@ export const COUNTRY_NAME_OVERRIDES = {
   эсватини: 'SWZ',
 }
 
-export const EMPTY_COLLECTION = {
+export const EMPTY_COLLECTION: CountryFeatureCollection = {
   type: 'FeatureCollection',
   features: [],
 }

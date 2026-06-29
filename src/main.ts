@@ -1,13 +1,14 @@
 import './style.css'
-import { loadCountryData } from './api/countriesApi.js'
-import { buildCountryIndex, findCountry, getCountryKey } from './countries/countryIndex.js'
-import { extractCountryNames } from './countries/countryParser.js'
-import { createCountryMap } from './map/countryMap.js'
-import { createAppView } from './ui/appView.js'
-import { getSelectionStatusText, LOAD_ERROR_STATUS_TEXT, READY_STATUS_TEXT } from './ui/status.js'
+import { loadCountryData } from './api/countriesApi'
+import { buildCountryIndex, findCountry, getCountryKey } from './countries/countryIndex'
+import { extractCountryNames } from './countries/countryParser'
+import type { CountryFeature, CountrySearchEntry } from './countries/countryTypes'
+import { createCountryMap } from './map/countryMap'
+import { createAppView } from './ui/appView'
+import { getSelectionStatusText, LOAD_ERROR_STATUS_TEXT, READY_STATUS_TEXT } from './ui/status'
 
-let countryIndex = new Map()
-let countrySearchEntries = []
+let countryIndex = new Map<string, CountryFeature>()
+let countrySearchEntries: CountrySearchEntry[] = []
 let mapLoaded = false
 
 const { input, applyButton, clearButton, statusEl } = createAppView('#app')
@@ -31,7 +32,7 @@ clearButton.addEventListener('click', () => {
   updateSelectedCountries()
 })
 
-async function loadAppData() {
+async function loadAppData(): Promise<void> {
   try {
     const { countriesData, countryNames } = await loadCountryData()
 
@@ -46,15 +47,15 @@ async function loadAppData() {
   }
 }
 
-function updateSelectedCountries() {
+function updateSelectedCountries(): void {
   if (!mapLoaded || !countryIndex.size) {
     return
   }
 
   const names = extractCountryNames(input.value, countrySearchEntries)
-  const selected = []
-  const missing = []
-  const seen = new Set()
+  const selected: CountryFeature[] = []
+  const missing: string[] = []
+  const seen = new Set<string>()
 
   for (const name of names) {
     const feature = findCountry(countryIndex, name)
@@ -74,15 +75,15 @@ function updateSelectedCountries() {
   }
 
   countryMap.setSelectedCountries(selected)
-  renderStatus(selected, missing)
+  statusEl.textContent = getSelectionStatusText(selected.length, missing)
 }
 
-function applyCountryInput() {
+function applyCountryInput(): void {
   normalizeCountryInput()
   updateSelectedCountries()
 }
 
-function normalizeCountryInput() {
+function normalizeCountryInput(): void {
   if (!countrySearchEntries.length) {
     return
   }
@@ -92,9 +93,5 @@ function normalizeCountryInput() {
   if (input.value !== normalizedValue) {
     input.value = normalizedValue
   }
-}
-
-function renderStatus(selected, missing) {
-  statusEl.textContent = getSelectionStatusText(selected.length, missing)
 }
 

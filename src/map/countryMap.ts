@@ -1,17 +1,36 @@
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { EMPTY_COLLECTION, MAP_STYLE } from '../config.js'
+import { EMPTY_COLLECTION, MAP_STYLE } from '../config'
+import type {
+  CountryFeature,
+  CountryFeatureCollection,
+  CountryGeometryCoordinates,
+  GeoJsonPosition,
+} from '../countries/countryTypes'
+import type {
+  GeoJSONSource,
+  LngLatBounds,
+  Map as MapLibreMap,
+  MapLayerMouseEvent,
+} from 'maplibre-gl'
 
-const DEFAULT_CENTER = [20, 25]
+const DEFAULT_CENTER: [number, number] = [20, 25]
 const DEFAULT_ZOOM = 1.5
 
-export function createCountryMap(containerId) {
+export interface CountryMap {
+  onLoad(callback: () => void): void
+  setCountriesData(collection: CountryFeatureCollection): void
+  setSelectedCountries(features: CountryFeature[]): void
+}
+
+type GeoJsonSourceData = Parameters<GeoJSONSource['setData']>[0]
+
+export function createCountryMap(containerId: string): CountryMap {
   const map = new maplibregl.Map({
     container: containerId,
     style: MAP_STYLE,
     center: DEFAULT_CENTER,
     zoom: DEFAULT_ZOOM,
-    attributionControl: true,
   })
   const countryPopup = new maplibregl.Popup({
     closeButton: false,
@@ -25,7 +44,7 @@ export function createCountryMap(containerId) {
     console.error('Map rendering error:', event.error)
   })
 
-  function onLoad(callback) {
+  function onLoad(callback: () => void): void {
     map.on('load', () => {
       map.resize()
       addCountrySources()
@@ -35,35 +54,35 @@ export function createCountryMap(containerId) {
     })
   }
 
-  function setCountriesData(collection) {
-    map.getSource('countries').setData(collection)
+  function setCountriesData(collection: CountryFeatureCollection): void {
+    getGeoJsonSource(map, 'countries').setData(toGeoJsonFeatureCollection(collection))
   }
 
-  function setSelectedCountries(features) {
+  function setSelectedCountries(features: CountryFeature[]): void {
     countryPopup.remove()
-    map.getSource('selected-countries').setData({
+    getGeoJsonSource(map, 'selected-countries').setData(toGeoJsonFeatureCollection({
       type: 'FeatureCollection',
       features,
-    })
+    }))
     fitToFeatures(features)
   }
 
-  function resetView() {
+  function fitToDefaultView(): void {
     map.easeTo({ center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM, duration: 700 })
   }
 
-  function addCountrySources() {
+  function addCountrySources(): void {
     map.addSource('countries', {
       type: 'geojson',
-      data: EMPTY_COLLECTION,
+      data: toGeoJsonFeatureCollection(EMPTY_COLLECTION),
     })
     map.addSource('selected-countries', {
       type: 'geojson',
-      data: EMPTY_COLLECTION,
+      data: toGeoJsonFeatureCollection(EMPTY_COLLECTION),
     })
   }
 
-  function addCountryLayers() {
+  function addCountryLayers(): void {
     map.addLayer({
       id: 'country-fills',
       type: 'fill',
@@ -106,8 +125,8 @@ export function createCountryMap(containerId) {
     })
   }
 
-  function addSelectedCountryTooltip() {
-    map.on('mousemove', 'selected-country-fills', (event) => {
+  function addSelectedCountryTooltip(): void {
+    map.on('mousemove', 'selected-country-fills', (event: MapLayerMouseEvent) => {
       const feature = event.features?.[0]
       if (!feature) {
         return
@@ -116,7 +135,7 @@ export function createCountryMap(containerId) {
       map.getCanvas().style.cursor = 'pointer'
       countryPopup
         .setLngLat(event.lngLat)
-        .setText(feature.properties.russianName || feature.properties.name)
+        .setText(getFeatureTooltipText(feature))
         .addTo(map)
     })
 
@@ -126,9 +145,9 @@ export function createCountryMap(containerId) {
     })
   }
 
-  function fitToFeatures(features) {
+  function fitToFeatures(features: CountryFeature[]): void {
     if (!features.length) {
-      resetView()
+      fitToDefaultView()
       return
     }
 
@@ -150,17 +169,40 @@ export function createCountryMap(containerId) {
     onLoad,
     setCountriesData,
     setSelectedCountries,
-    resetView,
   }
 }
 
-function extendBounds(bounds, coordinates) {
-  if (typeof coordinates[0] === 'number' && typeof coordinates[1] === 'number') {
-    bounds.extend(coordinates)
+function getGeoJsonSource(map: MapLibreMap, sourceId: string): GeoJSONSource {
+  const source = map.getSource(sourceId)
+  if (!source) {
+    throw new Error(`GeoJSON source not found: ${sourceId}`)
+  }
+
+  return source as GeoJSONSource
+}
+
+function extendBounds(bounds: LngLatBounds, coordinates: CountryGeometryCoordinates): void {
+  if (isGeoJsonPosition(coordinates)) {
+    bounds.extend([coordinates[0], coordinates[1]])
     return
   }
 
   for (const coordinate of coordinates) {
     extendBounds(bounds, coordinate)
   }
+}
+
+function isGeoJsonPosition(coordinates: CountryGeometryCoordinates): coordinates is GeoJsonPosition {
+  return typeof coordinates[0] === 'number' && typeof coordinates[1] === 'number'
+}
+
+function getFeatureTooltipText(feature: { properties?: Record<string, unknown> | null }): string {
+  const russianName = feature.properties?.russianName
+  const name = feature.properties?.name
+
+  return String(russianName || name || '')
+}
+
+function toGeoJsonFeatureCollection(collection: CountryFeatureCollection): GeoJsonSourceData {
+  return collection as GeoJsonSourceData
 }
