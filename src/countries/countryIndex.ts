@@ -1,4 +1,3 @@
-import { COUNTRY_NAME_OVERRIDES } from '../config'
 import type {
   CountryCode,
   CountryFeature,
@@ -13,8 +12,10 @@ type CountryNameValue = CountryCode | null | undefined
 export function buildCountryIndex(
   features: CountryFeature[],
   countryNames: CountryNameRecord[],
+  countryOverrides: Record<string, CountryOverride>,
 ): CountryIndexData {
   const index = new Map<string, CountryFeature>()
+  const displayNamesByCountryKey = new Map<string, string>()
   const searchEntries = new Map<string, CountrySearchEntry>()
   const featuresByCode = buildFeaturesByCode(features)
   const featuresByName = buildFeaturesByName(features)
@@ -26,7 +27,7 @@ export function buildCountryIndex(
       feature.properties['ISO3166-1-Alpha-2'],
       feature.properties.name,
     ], feature)
-    addNamesToSearch(searchEntries, [feature.properties.name], feature)
+    addNamesToSearch(searchEntries, [feature.properties.name], feature, displayNamesByCountryKey)
   }
 
   for (const country of countryNames) {
@@ -34,23 +35,28 @@ export function buildCountryIndex(
       || getFeatureByCode(featuresByCode, country.cca2)
       || findFeatureByName(country, featuresByName)
     if (feature) {
-      feature.properties.russianName = getRussianCountryName(country)
+      setCountryDisplayName(displayNamesByCountryKey, feature, getRussianCountryName(country))
       addNamesToIndex(index, getCountryNames(country), feature)
-      addNamesToSearch(searchEntries, getCountrySearchNames(country), feature)
+      addNamesToSearch(searchEntries, getCountrySearchNames(country), feature, displayNamesByCountryKey)
     }
   }
 
-  for (const [name, override] of Object.entries(COUNTRY_NAME_OVERRIDES)) {
+  for (const [name, override] of Object.entries(countryOverrides)) {
     const feature = findOverrideFeature(override, featuresByCode, featuresByName)
     if (feature) {
-      feature.properties.russianName = getOverrideDisplayName(name, override, feature)
+      setCountryDisplayName(
+        displayNamesByCountryKey,
+        feature,
+        getOverrideDisplayName(name, override, feature, displayNamesByCountryKey),
+      )
       index.set(normalizeName(name), feature)
-      addNamesToSearch(searchEntries, [name], feature)
+      addNamesToSearch(searchEntries, [name], feature, displayNamesByCountryKey)
     }
   }
 
   return {
     index,
+    displayNamesByCountryKey,
     searchEntries: [...searchEntries.values()]
       .sort((left, right) => right.normalizedName.length - left.normalizedName.length),
   }
@@ -102,6 +108,7 @@ function addNamesToSearch(
   searchEntries: Map<string, CountrySearchEntry>,
   names: CountryNameValue[],
   feature: CountryFeature,
+  displayNamesByCountryKey: Map<string, string>,
 ): void {
   for (const name of names) {
     if (!isSearchableCountryName(name)) {
@@ -117,7 +124,7 @@ function addNamesToSearch(
     searchEntries.set(key, {
       normalizedName,
       feature,
-      displayName: feature.properties.russianName || feature.properties.name || String(name),
+      displayName: getCountryDisplayName(feature, displayNamesByCountryKey, String(name)),
     })
   }
 }
@@ -199,12 +206,33 @@ function getOverrideDisplayName(
   name: string,
   override: CountryOverride,
   feature: CountryFeature,
+  displayNamesByCountryKey: Map<string, string>,
 ): string {
   if (typeof override === 'object' && override.displayName) {
     return override.displayName
   }
 
-  return feature.properties.russianName || feature.properties.name || name
+  return getCountryDisplayName(feature, displayNamesByCountryKey, name)
+}
+
+function setCountryDisplayName(
+  displayNamesByCountryKey: Map<string, string>,
+  feature: CountryFeature,
+  displayName: string | undefined,
+): void {
+  if (displayName) {
+    displayNamesByCountryKey.set(getCountryKey(feature), displayName)
+  }
+}
+
+function getCountryDisplayName(
+  feature: CountryFeature,
+  displayNamesByCountryKey: Map<string, string>,
+  fallbackName: string,
+): string {
+  return displayNamesByCountryKey.get(getCountryKey(feature))
+    || feature.properties.name
+    || fallbackName
 }
 
 function getCountryNames(country: CountryNameRecord): string[] {

@@ -1,24 +1,29 @@
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { EMPTY_COLLECTION, MAP_STYLE } from '../config'
-import type {
-  CountryFeature,
-  CountryFeatureCollection,
-  CountryGeometryCoordinates,
-  GeoJsonPosition,
-} from '../countries/countryTypes'
+import { DEFAULT_MAP_STYLE, EMPTY_COLLECTION } from '../config'
+import { getFeatureBounds } from './bounds'
+import type { CountryFeature, CountryFeatureCollection } from '../countries/countryTypes'
 import type {
   GeoJSONSource,
-  LngLatBounds,
   Map as MapLibreMap,
   MapLayerMouseEvent,
 } from 'maplibre-gl'
 
-const DEFAULT_CENTER: [number, number] = [20, 25]
+const DEFAULT_CENTER: [number, number] = [90, 60]
 const DEFAULT_ZOOM = 1.5
+const MAX_FIT_ZOOM = 16
+const FIT_BOUNDS_PADDING = {
+  bottom: 60,
+  left: 500,
+  right: 60,
+  top: 60,
+}
 
 export interface CountryMap {
+  fitToSelectedCountries(): void
   onLoad(callback: () => void): void
+  remove(): void
+  setStyleUrl(styleUrl: string): void
   setCountriesData(collection: CountryFeatureCollection): void
   setSelectedCountries(features: CountryFeature[]): void
 }
@@ -28,7 +33,7 @@ type GeoJsonSourceData = Parameters<GeoJSONSource['setData']>[0]
 export function createCountryMap(containerId: string): CountryMap {
   const map = new maplibregl.Map({
     container: containerId,
-    style: MAP_STYLE,
+    style: DEFAULT_MAP_STYLE.url,
     center: DEFAULT_CENTER,
     zoom: DEFAULT_ZOOM,
   })
@@ -38,91 +43,182 @@ export function createCountryMap(containerId: string): CountryMap {
     offset: 12,
     className: 'country-tooltip',
   })
+  let countriesData: CountryFeatureCollection = EMPTY_COLLECTION
+  let selectedFeatures: CountryFeature[] = []
+  let styleLoadGeneration = 0
+  let isRemoved = false
 
-  map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right')
   map.on('error', (event) => {
     console.error('Map rendering error:', event.error)
   })
 
   function onLoad(callback: () => void): void {
     map.on('load', () => {
+      if (isRemoved) {
+        return
+      }
+
       map.resize()
-      addCountrySources()
-      addCountryLayers()
+      restoreCountryLayers()
       addSelectedCountryTooltip()
       callback()
     })
   }
 
   function setCountriesData(collection: CountryFeatureCollection): void {
-    getGeoJsonSource(map, 'countries').setData(toGeoJsonFeatureCollection(collection))
+    if (isRemoved) {
+      return
+    }
+
+    countriesData = collection
+    getGeoJsonSource(map, 'countries')?.setData(toGeoJsonFeatureCollection(collection))
   }
 
   function setSelectedCountries(features: CountryFeature[]): void {
+    if (isRemoved) {
+      return
+    }
+
+    selectedFeatures = features
     countryPopup.remove()
-    getGeoJsonSource(map, 'selected-countries').setData(toGeoJsonFeatureCollection({
-      type: 'FeatureCollection',
-      features,
-    }))
-    fitToFeatures(features)
+    setSelectedCountrySourceData(features)
   }
 
-  function fitToDefaultView(): void {
-    map.easeTo({ center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM, duration: 700 })
+  function setStyleUrl(styleUrl: string): void {
+    if (isRemoved) {
+      return
+    }
+
+    const currentStyleLoadGeneration = ++styleLoadGeneration
+    countryPopup.remove()
+    map.once('style.load', () => {
+      if (isRemoved || currentStyleLoadGeneration !== styleLoadGeneration) {
+        return
+      }
+
+      restoreCountryLayers()
+    })
+    map.setStyle(styleUrl)
+  }
+
+  function fitToSelectedCountries(): void {
+    if (isRemoved) {
+      return
+    }
+
+    countryPopup.remove()
+    fitToFeatures(selectedFeatures, { resetCamera: true })
+  }
+
+  function remove(): void {
+    if (isRemoved) {
+      return
+    }
+
+    isRemoved = true
+    styleLoadGeneration += 1
+    countryPopup.remove()
+    map.remove()
+  }
+
+  function fitToDefaultView(resetCamera = false): void {
+    map.easeTo({
+      center: DEFAULT_CENTER,
+      zoom: DEFAULT_ZOOM,
+      ...(resetCamera ? { bearing: 0, pitch: 0 } : {}),
+      duration: 700,
+    })
   }
 
   function addCountrySources(): void {
-    map.addSource('countries', {
-      type: 'geojson',
-      data: toGeoJsonFeatureCollection(EMPTY_COLLECTION),
-    })
-    map.addSource('selected-countries', {
-      type: 'geojson',
-      data: toGeoJsonFeatureCollection(EMPTY_COLLECTION),
-    })
+    if (!map.getSource('countries')) {
+      map.addSource('countries', {
+        type: 'geojson',
+        data: toGeoJsonFeatureCollection(EMPTY_COLLECTION),
+      })
+    }
+
+    if (!map.getSource('selected-countries')) {
+      map.addSource('selected-countries', {
+        type: 'geojson',
+        data: toGeoJsonFeatureCollection(EMPTY_COLLECTION),
+      })
+    }
   }
 
   function addCountryLayers(): void {
-    map.addLayer({
-      id: 'country-fills',
-      type: 'fill',
-      source: 'countries',
-      paint: {
-        'fill-color': '#6b7280',
-        'fill-opacity': 0.06,
-      },
-    })
+    if (!map.getLayer('country-fills')) {
+      map.addLayer({
+        id: 'country-fills',
+        type: 'fill',
+        source: 'countries',
+        paint: {
+          'fill-color': '#6b7280',
+          'fill-opacity': 0.03,
+        },
+      })
+    }
 
-    map.addLayer({
-      id: 'country-borders',
-      type: 'line',
-      source: 'countries',
-      paint: {
-        'line-color': '#64748b',
-        'line-opacity': 0.4,
-        'line-width': 0.6,
-      },
-    })
+    if (!map.getLayer('country-borders')) {
+      map.addLayer({
+        id: 'country-borders',
+        type: 'line',
+        source: 'countries',
+        paint: {
+          'line-color': '#64748b',
+          'line-opacity': 0.4,
+          'line-width': 0.6,
+        },
+      })
+    }
 
-    map.addLayer({
-      id: 'selected-country-fills',
-      type: 'fill',
-      source: 'selected-countries',
-      paint: {
-        'fill-color': '#f97316',
-        'fill-opacity': 0.55,
-      },
-    })
+    if (!map.getLayer('selected-country-fills')) {
+      map.addLayer({
+        id: 'selected-country-fills',
+        type: 'fill',
+        source: 'selected-countries',
+        paint: {
+          'fill-color': getThemeColor('--app-selected-fill'),
+          'fill-opacity': 0.55,
+        },
+      })
+    }
 
-    map.addLayer({
-      id: 'selected-country-borders',
-      type: 'line',
-      source: 'selected-countries',
-      paint: {
-        'line-color': '#9a3412',
-        'line-width': 1.8,
-      },
-    })
+    if (!map.getLayer('selected-country-borders')) {
+      map.addLayer({
+        id: 'selected-country-borders',
+        type: 'line',
+        source: 'selected-countries',
+        paint: {
+          'line-color': getThemeColor('--app-selected-border'),
+          'line-width': 1.8,
+        },
+      })
+    }
+    applyThemeToLayers()
+  }
+
+  function restoreCountryLayers(): void {
+    addCountrySources()
+    addCountryLayers()
+    getGeoJsonSource(map, 'countries')?.setData(toGeoJsonFeatureCollection(countriesData))
+    setSelectedCountrySourceData(selectedFeatures)
+  }
+
+  function applyThemeToLayers(): void {
+    if (!map.getLayer('selected-country-fills') || !map.getLayer('selected-country-borders')) {
+      return
+    }
+
+    map.setPaintProperty('selected-country-fills', 'fill-color', getThemeColor('--app-selected-fill'))
+    map.setPaintProperty('selected-country-borders', 'line-color', getThemeColor('--app-selected-border'))
+  }
+
+  function setSelectedCountrySourceData(features: CountryFeature[]): void {
+    getGeoJsonSource(map, 'selected-countries')?.setData(toGeoJsonFeatureCollection({
+      type: 'FeatureCollection',
+      features,
+    }))
   }
 
   function addSelectedCountryTooltip(): void {
@@ -145,55 +241,37 @@ export function createCountryMap(containerId: string): CountryMap {
     })
   }
 
-  function fitToFeatures(features: CountryFeature[]): void {
+  function fitToFeatures(features: CountryFeature[], options: { resetCamera?: boolean } = {}): void {
     if (!features.length) {
-      fitToDefaultView()
+      fitToDefaultView(options.resetCamera)
       return
     }
 
-    const bounds = new maplibregl.LngLatBounds()
-    for (const feature of features) {
-      extendBounds(bounds, feature.geometry.coordinates)
-    }
+    const bounds = getFeatureBounds(features)
 
     if (!bounds.isEmpty()) {
       map.fitBounds(bounds, {
-        padding: 60,
-        maxZoom: 4.5,
+        padding: FIT_BOUNDS_PADDING,
+        maxZoom: MAX_FIT_ZOOM,
+        ...(options.resetCamera ? { bearing: 0, pitch: 0 } : {}),
         duration: 800,
       })
     }
   }
 
   return {
+    fitToSelectedCountries,
     onLoad,
+    remove,
+    setStyleUrl,
     setCountriesData,
     setSelectedCountries,
   }
 }
 
-function getGeoJsonSource(map: MapLibreMap, sourceId: string): GeoJSONSource {
+function getGeoJsonSource(map: MapLibreMap, sourceId: string): GeoJSONSource | undefined {
   const source = map.getSource(sourceId)
-  if (!source) {
-    throw new Error(`GeoJSON source not found: ${sourceId}`)
-  }
-
-  return source as GeoJSONSource
-}
-
-function extendBounds(bounds: LngLatBounds, coordinates: CountryGeometryCoordinates): void {
-  if (isGeoJsonPosition(coordinates)) {
-    bounds.extend([coordinates[0], coordinates[1]])
-    return
-  }
-
-  for (const coordinate of coordinates) {
-    extendBounds(bounds, coordinate)
-  }
-}
-
-function isGeoJsonPosition(coordinates: CountryGeometryCoordinates): coordinates is GeoJsonPosition {
-  return typeof coordinates[0] === 'number' && typeof coordinates[1] === 'number'
+  return source as GeoJSONSource | undefined
 }
 
 function getFeatureTooltipText(feature: { properties?: Record<string, unknown> | null }): string {
@@ -205,4 +283,8 @@ function getFeatureTooltipText(feature: { properties?: Record<string, unknown> |
 
 function toGeoJsonFeatureCollection(collection: CountryFeatureCollection): GeoJsonSourceData {
   return collection as GeoJsonSourceData
+}
+
+function getThemeColor(propertyName: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(propertyName).trim()
 }

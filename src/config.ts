@@ -1,52 +1,35 @@
-import type { CountryFeatureCollection, CountryOverride } from './countries/countryTypes'
-import type { StyleSpecification } from 'maplibre-gl'
+import type { CountryFeatureCollection } from './countries/countryTypes'
 
 export const COUNTRIES_URL = 'https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson'
 export const COUNTRY_NAMES_URL = 'https://cdn.jsdelivr.net/npm/world-countries@latest/countries.json'
-
-export const MAP_STYLE = {
-  version: 8,
-  sources: {},
-  layers: [
-    {
-      id: 'background',
-      type: 'background',
-      paint: {
-        'background-color': '#dbeafe',
-      },
-    },
-  ],
-} satisfies StyleSpecification
-
-export const COUNTRY_NAME_OVERRIDES: Record<string, CountryOverride> = {
-  багамы: 'BHS',
-  'др конго': 'COD',
-  конго: 'COG',
-  косово: {
-    featureName: 'Kosovo',
-    displayName: 'Косово',
+export const MAP_STYLES = [
+  {
+    id: 'bright',
+    name: 'Bright',
+    url: 'https://tiles.openfreemap.org/styles/bright',
   },
-  'коморские острова': 'COM',
-  кыргызстан: 'KGZ',
-  микронезия: 'FSM',
-  оаэ: 'ARE',
-  'палестинские территории': 'PSE',
-  'святой престол': 'VAT',
-  ватикан: {
-    code: 'VAT',
-    displayName: 'Ватикан',
+  {
+    id: 'positron',
+    name: 'Positron',
+    url: 'https://tiles.openfreemap.org/styles/positron',
   },
-  сомалиленд: {
-    featureName: 'Somaliland',
-    displayName: 'Сомалиленд',
+  {
+    id: 'liberty',
+    name: 'Liberty',
+    url: 'https://tiles.openfreemap.org/styles/liberty',
   },
-  'соединенное королевство': 'GBR',
-  'соединенные штаты': 'USA',
-  сша: 'USA',
-  'тимор лесте': 'TLS',
-  'южная африка': 'ZAF',
-  эсватини: 'SWZ',
-}
+  {
+    id: 'dark',
+    name: 'Dark',
+    url: 'https://tiles.openfreemap.org/styles/dark',
+  },
+  {
+    id: 'fiord',
+    name: 'Fiord',
+    url: 'https://tiles.openfreemap.org/styles/fiord',
+  },
+] as const
+export const DEFAULT_MAP_STYLE = MAP_STYLES[0]
 
 export const EMPTY_COLLECTION: CountryFeatureCollection = {
   type: 'FeatureCollection',

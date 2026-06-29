@@ -8,8 +8,9 @@
     "strict": true,
     "noEmit": true,
     "isolatedModules": true,
+    "jsx": "react-jsx",
     "skipLibCheck": true,
     "types": ["vite/client"]
   },
-  "include": ["src/**/*.ts", "vite.config.ts"]
+  "include": ["src", "vite.config.ts"]
 }

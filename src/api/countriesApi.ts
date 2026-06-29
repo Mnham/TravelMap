@@ -17,7 +17,12 @@ export async function fetchJson<T>(url: string): Promise<T> {
 
 export async function fetchCountryNames(): Promise<CountryNameRecord[]> {
   try {
-    return await fetchJson<CountryNameRecord[]>(COUNTRY_NAMES_URL)
+    const countryNames = await fetchJson<unknown>(COUNTRY_NAMES_URL)
+    if (!Array.isArray(countryNames)) {
+      throw new Error(`${COUNTRY_NAMES_URL} returned invalid country names data`)
+    }
+
+    return countryNames as CountryNameRecord[]
   } catch (error) {
     console.warn('Country names API is unavailable. Falling back to GeoJSON names.', error)
     return []
@@ -25,10 +30,24 @@ export async function fetchCountryNames(): Promise<CountryNameRecord[]> {
 }
 
 export async function loadCountryData(): Promise<CountryData> {
-  const [countriesData, countryNames] = await Promise.all([
-    fetchJson<CountryFeatureCollection>(COUNTRIES_URL),
+  const [countriesDataResponse, countryNames] = await Promise.all([
+    fetchJson<unknown>(COUNTRIES_URL),
     fetchCountryNames(),
   ])
+  if (!isCountryFeatureCollection(countriesDataResponse)) {
+    throw new Error(`${COUNTRIES_URL} returned invalid GeoJSON data`)
+  }
 
-  return { countriesData, countryNames }
+  return { countriesData: countriesDataResponse, countryNames }
+}
+
+function isCountryFeatureCollection(value: unknown): value is CountryFeatureCollection {
+  return Boolean(
+    value
+      && typeof value === 'object'
+      && 'type' in value
+      && value.type === 'FeatureCollection'
+      && 'features' in value
+      && Array.isArray(value.features),
+  )
 }

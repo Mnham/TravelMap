@@ -3,11 +3,11 @@ export const READY_STATUS_TEXT = 'Введите страны, чтобы под
 export const LOAD_ERROR_STATUS_TEXT = 'Не удалось загрузить границы стран. Проверьте подключение к интернету.'
 
 export function getSelectionStatusText(selectedCount: number, missingNames: string[]): string {
-  const foundText = selectedCount
+  const foundText = selectedCount || missingNames.length
     ? `Найдено: ${selectedCount}.`
     : 'Пока ничего не выбрано.'
   const missingText = missingNames.length
-    ? ` Не найдено: ${missingNames.slice(0, 5).join(', ')}${missingNames.length > 5 ? ` и еще ${missingNames.length - 5}` : ''}.`
+    ? ` Не найдено: ${missingNames.length} (${missingNames.slice(0, 5).join(', ')}${missingNames.length > 5 ? ` и еще ${missingNames.length - 5}` : ''}).`
     : ''
 
   return `${foundText}${missingText}`

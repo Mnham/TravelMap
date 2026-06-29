@@ -54,5 +54,6 @@ export interface CountrySearchEntry {
 
 export interface CountryIndexData {
   index: Map<string, CountryFeature>
+  displayNamesByCountryKey: Map<string, string>
   searchEntries: CountrySearchEntry[]
 }
