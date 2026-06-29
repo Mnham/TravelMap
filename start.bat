@@ -13,9 +13,9 @@ if not exist "node_modules\" (
   )
 )
 
-start "TravelMap Vite Server" cmd /k "cd /d "%~dp0" && pnpm run dev -- --host 127.0.0.1 --port 5173 --strictPort"
+start "TravelMap Vite Server" cmd /k "cd /d "%~dp0" && pnpm run dev -- --host localhost --port 5173 --strictPort"
 
 timeout /t 3 /nobreak >nul
-start "" "http://127.0.0.1:5173/"
+start "" "http://localhost:5173/TravelMap/"
 
 endlocal

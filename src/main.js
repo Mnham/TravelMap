@@ -4,6 +4,19 @@ import './style.css'
 
 const COUNTRIES_URL = 'https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson'
 const COUNTRY_NAMES_URL = 'https://cdn.jsdelivr.net/npm/world-countries@latest/countries.json'
+const MAP_STYLE = {
+  version: 8,
+  sources: {},
+  layers: [
+    {
+      id: 'background',
+      type: 'background',
+      paint: {
+        'background-color': '#dbeafe',
+      },
+    },
+  ],
+}
 const COUNTRY_NAME_OVERRIDES = {
   багамы: 'BHS',
   'др конго': 'COD',
@@ -38,20 +51,9 @@ let mapLoaded = false
 
 document.querySelector('#app').innerHTML = `
   <aside class="panel">
-    <div>
-      <p class="eyebrow">Travel Map</p>
-      <h1>Подсветка стран на карте</h1>
-      <p class="intro">
-        Введите страны через запятую или с новой строки. Русские и английские названия
-        загружаются онлайн из открытого справочника стран.
-      </p>
-    </div>
-
     <label class="country-input">
       <span>Список стран</span>
-      <textarea id="countries-input" rows="8" spellcheck="false">Франция
-Германия
-Япония</textarea>
+      <textarea id="countries-input" rows="8" spellcheck="false"></textarea>
     </label>
 
     <div class="actions">
@@ -74,7 +76,7 @@ const statusEl = document.querySelector('#status')
 
 const map = new maplibregl.Map({
   container: 'map',
-  style: 'https://tiles.openfreemap.org/styles/bright',
+  style: MAP_STYLE,
   center: [20, 25],
   zoom: 1.5,
   attributionControl: true,
@@ -87,9 +89,13 @@ const countryPopup = new maplibregl.Popup({
 })
 
 map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right')
+map.on('error', (event) => {
+  console.error('Map rendering error:', event.error)
+})
 
 map.on('load', async () => {
   mapLoaded = true
+  map.resize()
   map.addSource('countries', {
     type: 'geojson',
     data: EMPTY_COLLECTION,
