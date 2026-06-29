@@ -16,8 +16,8 @@ body {
   -moz-osx-font-smoothing: grayscale;
   --app-accent: #7dd3fc;
   --app-accent-strong: #bae6fd;
-  --app-selected-fill: #38bdf8;
-  --app-selected-border: #bae6fd;
+  --app-selected-fill: #ef4444;
+  --app-selected-border: #7f1d1d;
   --app-focus-ring: rgb(125 211 252 / 12%);
   --app-tooltip-bg: rgb(15 18 27 / 92%);
   --app-tooltip-border: rgb(125 211 252 / 30%);
